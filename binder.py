@@ -97,7 +97,7 @@ def mp3_to_m4a(sequence, filelist_mp3_path: str, bitrate: int, output_path: str)
     output_m4b_path = os.path.join(output_path, f"{sequence}-temp.m4b")
 
     # Concatenate mp3 files
-    os.system(f"ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i {filelist_mp3_path} -c copy {concat_mp3_path}")
+    os.system(f'ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "{filelist_mp3_path}" -c copy "{concat_mp3_path}"')
 
     # If bitrate is not provided, get the bitrate of the input mp3 files
     if bitrate == -1 or bitrate is None:
@@ -105,7 +105,7 @@ def mp3_to_m4a(sequence, filelist_mp3_path: str, bitrate: int, output_path: str)
 
     title = os.path.basename(os.getcwd())
     # Convert mp3 to m4b
-    os.system(f'ffmpeg -hide_banner -loglevel error -i {concat_mp3_path} -c:a aac -b:a {bitrate}k -vn -f mp4 {output_m4b_path}')
+    os.system(f'ffmpeg -hide_banner -loglevel error -i "{concat_mp3_path}" -c:a aac -b:a {bitrate}k -vn -f mp4 "{output_m4b_path}"')
 
     # Remove temporary files
     os.remove(concat_mp3_path)
@@ -160,7 +160,7 @@ def concat_m4b(files: list, input_path: str) -> str:
     create_filelist(filelist_m4b_path, files)
 
     concat_m4b_path = os.path.join(input_path, "concat.m4b")
-    os.system(f"ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i {filelist_m4b_path} -c copy {concat_m4b_path}")
+    os.system(f'ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "{filelist_m4b_path}" -c copy "{concat_m4b_path}"')
 
     os.remove(filelist_m4b_path)
     for file in files:
@@ -173,7 +173,7 @@ def chapterize_m4b(m4b_path: str, chapters_path: str, output_path) -> None:
     """
     Uses ffmpeg to embed chapters in a m4b file.
     """
-    os.system(f'ffmpeg -hide_banner -loglevel error -i {m4b_path} -i {chapters_path} -c copy -map 0:a -map_chapters 1 {output_path}')
+    os.system(f'ffmpeg -hide_banner -loglevel error -i "{m4b_path}" -i "{chapters_path}" -c copy -map 0:a -map_chapters 1 "{output_path}"')
     os.remove(chapters_path)
     os.remove(m4b_path)
 
