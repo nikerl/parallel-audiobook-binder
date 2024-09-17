@@ -93,6 +93,8 @@ def mp3_to_m4a(sequence, filelist_mp3_path: str, bitrate: int, output_path: str)
     Takes a sequence number to name the temporary files, a path to a filelist of mp3 files, 
     the output bitrate, and the output path.
     """
+    sequence = f"{sequence:04}" # Zero pad the sequence number to 4 digits
+
     concat_mp3_path = os.path.join(output_path, f"{sequence}-temp.mp3")
     output_m4b_path = os.path.join(output_path, f"{sequence}-temp.m4b")
 
