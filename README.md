@@ -2,11 +2,16 @@
 This is a fully parallelized audiobook binder / MP3 to M4B converter.
 
 ### Installation
-- Clone the repo
-- Install requirements: `pip install -r requirments.txt`
+Install the required pip packages: 
+```
+pip install -r requirments.txt
+```
 
 ### Running the program
-Run binder.py using the following command: `python binder.py -i INPUT`
+Run binder.py using the following command: 
+```
+python binder.py -i INPUT
+```
 
 The following arguemnts are available:
 - -i INPUT, --input INPUT: Path to the mp3 files (required)
