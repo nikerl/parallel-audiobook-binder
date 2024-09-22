@@ -15,11 +15,10 @@ def create_filelist(path: str, files: list) -> None:
     Create a filelist for ffmpeg to concatenate files.
 
     Takes python list of file paths and a path to write the list to.
-    
     """
     with open(path, "w") as f:
         for file in files:
-            f.write(f"file '{os.path.join(os.pardir, file)}'\n")
+            f.write(f"file '{file}'\n")
 
 
 def get_track_number(file_path: str) -> int:
@@ -53,7 +52,7 @@ def create_sorted_list_of_files(path: str, file_type: str) -> list:
 
     return files
 
-3
+
 def get_m4b_length(file: str) -> int:
     """
     Get the length of an M4B file in seconds.
@@ -95,7 +94,7 @@ def get_mp3_bitrate(file: str) -> int:
 
 def mp3_to_m4a(sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
     """ 
-    Converts a list of mp3 files to a single m4b file usign ffmpeg.
+    Converts a list of mp3 files to a single m4b file using ffmpeg.
 
     Takes a sequence number to name the temporary files, a path to a filelist of mp3 files, 
     the output bitrate, and the output path.
@@ -104,17 +103,15 @@ def mp3_to_m4a(sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
 
     output_m4b_path = os.path.join(output_path, f"{sequence}-{os.path.splitext(os.path.basename(mp3_path))[0]}.m4b")
 
-    # Convert mp3 to m4b
+    # Convert mp3 to m4b, ignoring any video streams (e.g., cover images)
     os.system(f'ffmpeg -hide_banner -loglevel error -i "{mp3_path}" -vn -c:a aac -b:a {bitrate}k -movflags +faststart "{output_m4b_path}"')
 
     return output_m4b_path
 
 
-
-
 def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
     """
-    Creats tasks of two or three mp3 files to convert to m4b files in parallel.
+    Creates tasks of two or three mp3 files to convert to m4b files in parallel.
     """
     output_m4b_paths = []
 
@@ -187,16 +184,22 @@ def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
     os.remove(input_file)
 
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description='Script to process a zip file of CSVs')
-    parser.add_argument('-i', '--input', type=str, default='./', help='Path to the mp3 files (optional, default is current directory)')
-    parser.add_argument('-o', '--output', type=str, default='./', help='Path to the output file (optional, default is current directory)')
+    parser.add_argument('-i', '--input', type=str, required=True, help='Path to a directory containing mp3 files')
+    parser.add_argument('-o', '--output', type=str, help='Path to the the output directory (optional, default is same as the input directory)')
     parser.add_argument('-b', '--bitrate', type=int, default=128, help='Bitrate of the output m4b file in kb/s (optional, default is 128k, use "-1" to get the same bitrate as the input mp3 files)')
     parser.add_argument('--no-chapterize', action='store_true', help='Prevent embeding of chapters in m4b file (optional)')
     args = parser.parse_args()
 
-    print(f'Starting conversion of "{os.path.basename(args.input)}" to m4b')
+    # Resolve relative paths to absolute paths
+    args.input = os.path.abspath(args.input)
+    if args.output is None:
+        args.output = args.input
+    else:
+        args.output = os.path.abspath(args.output)
+
+    print(f'Starting conversion of "{os.path.basename(args.input)}" to M4B')
 
     # Create temporary directory for processing files
     temp_dir_path: str = os.path.join(args.input, ".temp")
@@ -225,14 +228,13 @@ def main() -> None:
     if not args.no_chapterize:
         chapterize_m4b_path = os.path.join(temp_dir_path, "chapterized.m4b")
         chapterize_m4b(metadata_m4b_path, chapters_path, chapterize_m4b_path)
-        shutil.move(chapterize_m4b_path, os.path.join(args.output, f"{metadata["album"]}.m4b"))
+        shutil.move(chapterize_m4b_path, os.path.join(args.output, f"{metadata['album']}.m4b"))
     else:
-        shutil.move(metadata_m4b_path, os.path.join(args.output, f"{metadata["album"]}.m4b"))
+        shutil.move(metadata_m4b_path, os.path.join(args.output, f"{metadata['album']}.m4b"))
     
     shutil.rmtree(temp_dir_path)
 
     print("Done!")
-
 
 
 if __name__ == '__main__':
