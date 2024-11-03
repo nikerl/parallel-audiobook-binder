@@ -1,4 +1,6 @@
 import argparse
+from math import ceil
+import multiprocessing
 import os
 import shutil
 import sys
@@ -19,7 +21,7 @@ def create_filelist(path: str, files: list) -> None:
     """
     with open(path, "w") as f:
         for file in files:
-            f.write(f"file '{os.path.join(os.pardir, file)}'\n")
+            f.write(f"file '{os.path.join(os.getcwd(), file)}'\n")
 
 
 def get_track_number(file_path: str, file_type: str) -> int:
@@ -134,7 +136,7 @@ def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
             futures.append(executor.submit(mp3_to_m4a, i, mp3_path, bitrate, output_path))
 
         # Create a progress bar
-        with tqdm(total=len(futures), desc="Processing MP3 to M4A", unit="chapter") as pbar:
+        with tqdm(total=len(futures), desc="Processing MP3 to M4B", unit="chapter") as pbar:
             for future in concurrent.futures.as_completed(futures):
                 output_m4b_paths.append(future.result())
                 pbar.update(1)  # Update the progress bar for each completed task
@@ -151,11 +153,12 @@ def concat_audio(files: list, input_path: str, file_type) -> str:
     create_filelist(filelist_path, files)
 
     concat_path = os.path.join(input_path, f"concat.{file_type}")
-    os.system(f'ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "{filelist_path}" -c copy "{concat_path}"')
+    os.system(f'ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "{filelist_path}" -c:a copy "{concat_path}"')
 
-    os.remove(filelist_path)
-    for file in files:
-        os.remove(file)
+    if file_type == "mp3":
+        os.remove(filelist_path)
+        for file in files:
+            os.remove(file)
 
     return concat_path
 
@@ -169,7 +172,7 @@ def chapterize_m4b(m4b_path: str, chapters_path: str, output_path) -> None:
     os.remove(m4b_path)
 
 
-def extract_metadata(file: str, bitrate) -> dict:
+def extract_metadata_mp3(file: str, bitrate) -> dict:
     """
     Extracts artist, album, and date metadata from an mp3 file.
     """
@@ -187,6 +190,17 @@ def extract_metadata(file: str, bitrate) -> dict:
         print(f"Error extracting metadata from {file}: {e}")
         sys.stdout.flush()
         return {'artist': 'Unknown Artist', 'album': 'Unknown Album', 'date': 'Unknown Date', 'bitrate': bitrate}
+
+def extract_metadata_m4b(file: str, bitrate) -> dict:
+    if bitrate == -1 or bitrate is None:
+        bitrate = ceil(audio.info.bitrate / 1000)
+
+    audio = MP4(file)
+    artist = audio.tags.get("\xa9ART", ["Unknown Artist"])[0]
+    album = audio.tags.get("\xa9alb", ["Unknown Album"])[0]
+    date = audio.tags.get("\xa9day", ["Unknown Date"])[0]
+
+    return {'artist': artist, 'album': album, 'date': date, 'bitrate': bitrate}
 
 
 def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
@@ -235,6 +249,19 @@ def parse_cue_sheet(cue_file_path: str, chapters_path: str, audio_length: str):
             ch.write(f"title={chapters[i]['title']}\n\n")
 
 
+def split_mp3(mp3_path: str, mp3_file_list: list, temp_dir: str, split_count: int):
+    duration = MP3(mp3_path).info.length
+    split_duration = duration / split_count
+
+    for i in range(split_count):
+        start_time = i * split_duration
+        if i == split_count - 1: split_duration = start_time - duration
+
+        split_mp3 = os.path.join(temp_dir, f"part-{i}.mp3")
+        os.system(f"ffmpeg -i {mp3_path} -ss {start_time} -t {split_duration} -c copy {split_mp3}")
+        mp3_file_list.append(split_mp3)
+        
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Script to process a zip file of CSVs')
@@ -252,12 +279,17 @@ def main() -> None:
     temp_dir_path: str = os.path.join(args.input, ".temp")
     os.makedirs(temp_dir_path, exist_ok=True)
 
+    # Initialize variables
+    metadata: dict = None
+    concat_m4b_path = None
+
     if args.chapters == 'mp3files':
         # Sort mp3 files by track number or alphabetically if no track number is available
         files_mp3: list = create_sorted_list_of_files(args.input, args.filetype)
 
         # Extract metadata from the first mp3 file
-        metadata: dict = extract_metadata(files_mp3[0], args.bitrate)
+        print("Extract metadata")
+        metadata: dict = extract_metadata_mp3(files_mp3[0], args.bitrate)
 
         # Convert mp3 files to m4a files in parallel
         files_m4b = parallel_mp3_to_m4a(files_mp3, metadata["bitrate"], temp_dir_path)
@@ -267,21 +299,37 @@ def main() -> None:
         create_chapter_file(files_m4b, chapters_path)
 
         # Concatenate m4b files into a single m4b file
-        concat_m4b_path = concat_audio(files_m4b, temp_dir_path, args.filetype)
+        concat_m4b_path = concat_audio(files_m4b, temp_dir_path, "m4b")
 
     elif args.chapters == 'cue':
         files: list = create_sorted_list_of_files(args.input, args.filetype)
 
+        print("Concatonate audio files")
         concat_path = concat_audio(files, temp_dir_path, args.filetype)
 
-        if args.filetype == 'mp3':
-            audio = MP3(concat_audio)
+        audio_duration = None
 
+        if args.filetype == 'mp3':
+            print("Extract metadata")
+            metadata = extract_metadata_mp3(files[0])
+            audio_duration = MP3(concat_audio).info.length
+
+            # Split into multiple files for parallel conversion
+            split_mp3_list = []
+            split_count = multiprocessing.cpu_count() * 2
+            split_mp3(concat_path, split_mp3_list, temp_dir_path, split_count)
+
+            # Convert to m4b
+            files_m4b = parallel_mp3_to_m4a(split_mp3_list, metadata["bitrate"], temp_dir_path)
+            concat_m4b_path = concat_audio(files_m4b, temp_dir_path, "m4b")
 
         elif args.filetype == 'm4b':
-            audio = MP4(concat_audio)
-        audio_duration = audio.info.length
+            print("Extract metadata")
+            metadata = extract_metadata_m4b(files[0], args.bitrate)
+            audio_duration = MP4(concat_path).info.length
+            concat_m4b_path = concat_path
 
+        print("Parsing CUE sheet")
         cue_sheet_path: str = create_sorted_list_of_files(args.input, "cue")[0]
         chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
         parse_cue_sheet(cue_sheet_path, chapters_path, audio_duration)
@@ -292,6 +340,7 @@ def main() -> None:
     embed_metadata(concat_m4b_path, metadata_m4b_path, metadata)
 
     if not args.chapters == "none":
+        print("Embedding Chapters")
         chapterize_m4b_path = os.path.join(temp_dir_path, "chapterized.m4b")
         chapterize_m4b(metadata_m4b_path, chapters_path, chapterize_m4b_path)
         shutil.move(chapterize_m4b_path, os.path.join(args.output, f"{metadata["album"]}.m4b"))
