@@ -22,17 +22,27 @@ def create_filelist(path: str, files: list) -> None:
             f.write(f"file '{os.path.join(os.pardir, file)}'\n")
 
 
-def get_track_number(file_path: str) -> int:
+def get_track_number(file_path: str, file_type: str) -> int:
     """ 
-    Get ID3v2 track number from mp3 file
+    Get track number from audio file
     """
-    try:
-        audio = EasyID3(file_path)
-        track_number = int(audio.get('tracknumber', [0])[0].split('/')[0])
-        return track_number
-    except Exception:
-        return 0
+
+    if file_type == "mp3":
+        try:
+            audio = EasyID3(file_path)
+            track_number = int(audio.get('tracknumber', [0])[0].split('/')[0])
+            return track_number
+        except Exception:
+            return 0
     
+    elif file_type == "m4b":
+        try:    
+            audio = MP4(file_path)
+            track_number = int(audio["trkn"][0][0])
+            return track_number
+        except Exception:
+            return 0
+        
 
 def create_sorted_list_of_files(path: str, file_type: str) -> list:
     """
@@ -48,12 +58,12 @@ def create_sorted_list_of_files(path: str, file_type: str) -> list:
     
     files.sort()
     
-    if file_type == ".mp3":
-        files.sort(key=lambda file: get_track_number(os.path.join(path, file)))
+    if file_type == "mp3" or file_type == "m4b":
+        files.sort(key=lambda file: get_track_number(os.path.join(path, file), file_type))
 
     return files
 
-3
+
 def get_m4b_length(file: str) -> int:
     """
     Get the length of an M4B file in seconds.
@@ -133,21 +143,21 @@ def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
     return output_m4b_paths
 
 
-def concat_m4b(files: list, input_path: str) -> str:
+def concat_audio(files: list, input_path: str, file_type) -> str:
     """
     Concatenates m4b files into a single m4b file.
     """
-    filelist_m4b_path = os.path.join(input_path, "m4b_filelist.txt")
-    create_filelist(filelist_m4b_path, files)
+    filelist_path = os.path.join(input_path, "filelist.txt")
+    create_filelist(filelist_path, files)
 
-    concat_m4b_path = os.path.join(input_path, "concat.m4b")
-    os.system(f'ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "{filelist_m4b_path}" -c copy "{concat_m4b_path}"')
+    concat_path = os.path.join(input_path, f"concat.{file_type}")
+    os.system(f'ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i "{filelist_path}" -c copy "{concat_path}"')
 
-    os.remove(filelist_m4b_path)
+    os.remove(filelist_path)
     for file in files:
         os.remove(file)
 
-    return concat_m4b_path
+    return concat_path
 
 
 def chapterize_m4b(m4b_path: str, chapters_path: str, output_path) -> None:
@@ -187,13 +197,53 @@ def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
     os.remove(input_file)
 
 
+def parse_cue_sheet(cue_file_path: str, chapters_path: str, audio_length: str):
+    cue = open(cue_file_path, 'r')
+    cueSheet = cue.readlines()
+    cue.close()
+    
+    i = 0
+    chapters = []
+    while i < len(cueSheet):
+        if 'TRACK' in cueSheet[i]:
+            i += 1
+            chapter = {}
+            while(i < len(cueSheet) and 'TRACK' not in cueSheet[i]):
+                if 'TITLE' in cueSheet[i]:
+                    title = cueSheet[i].strip().split('TITLE ')[1].strip('"')
+                    chapter['title'] = title
+                if 'INDEX' in cueSheet[i]:
+                    duration = cueSheet[i].strip().split(' ')[2]
+                    minutes, seconds, frames = duration.split(':')
+                    length = float(minutes) * 60 + float(seconds) + float(frames) / 75
+                    chapter['length'] = length
+                i += 1
+            chapters.append(chapter)
+            i -= 1
+        i += 1    
+
+    with open(chapters_path, "w") as ch:
+        ch.write(";FFMETADATA1\n\n")
+        for i in range(0, len(chapters)):
+            ch.write("[CHAPTER]\n")
+            ch.write("TIMEBASE=1/10\n")
+            ch.write(f"START={int(chapters[i]['length'] * 10)}\n")
+            if i < len(chapters) - 1:
+                ch.write(f"END={int(chapters[i+1]['length'] * 10)}\n")
+            else:
+                ch.write(f"END={int(audio_length * 10)}\n")
+            ch.write(f"title={chapters[i]['title']}\n\n")
+
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Script to process a zip file of CSVs')
     parser.add_argument('-i', '--input', type=str, default='./', help='Path to the mp3 files (optional, default is current directory)')
     parser.add_argument('-o', '--output', type=str, default='./', help='Path to the output file (optional, default is current directory)')
     parser.add_argument('-b', '--bitrate', type=int, default=128, help='Bitrate of the output m4b file in kb/s (optional, default is 128k, use "-1" to get the same bitrate as the input mp3 files)')
-    parser.add_argument('--no-chapterize', action='store_true', help='Prevent embeding of chapters in m4b file (optional)')
+    # parser.add_argument('--no-chapterize', action='store_true', help='Prevent embeding of chapters in m4b file (optional)')
+    parser.add_argument('-c', '--chapters', type=str, choices=['mp3files', 'cue', 'none'], required=True, help='Set the source for chapter data, options: Chapterized -mp3files-, -cue- sheet, or -none- to not chapterize')
+    parser.add_argument('-t', '--filetype', type=str, choices=['mp3', 'm4b'], required=True, help='Filetype, mp3 or m4b')
     args = parser.parse_args()
 
     print(f'Starting conversion of "{os.path.basename(args.input)}" to m4b')
@@ -202,27 +252,46 @@ def main() -> None:
     temp_dir_path: str = os.path.join(args.input, ".temp")
     os.makedirs(temp_dir_path, exist_ok=True)
 
-    # Sort mp3 files by track number or alphabetically if no track number is available
-    files_mp3: list = create_sorted_list_of_files(args.input, ".mp3")
+    if args.chapters == 'mp3files':
+        # Sort mp3 files by track number or alphabetically if no track number is available
+        files_mp3: list = create_sorted_list_of_files(args.input, args.filetype)
 
-    # Extract metadata from the first mp3 file
-    metadata: dict = extract_metadata(files_mp3[0], args.bitrate)
+        # Extract metadata from the first mp3 file
+        metadata: dict = extract_metadata(files_mp3[0], args.bitrate)
 
-    # Convert mp3 files to m4a files in parallel
-    files_m4b = parallel_mp3_to_m4a(files_mp3, metadata["bitrate"], temp_dir_path)
+        # Convert mp3 files to m4a files in parallel
+        files_m4b = parallel_mp3_to_m4a(files_mp3, metadata["bitrate"], temp_dir_path)
 
-    # Create a file containing chapter information
-    chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
-    create_chapter_file(files_m4b, chapters_path)
+        # Create a file containing chapter information
+        chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
+        create_chapter_file(files_m4b, chapters_path)
 
-    # Concatenate m4b files into a single m4b file
-    concat_m4b_path = concat_m4b(files_m4b, temp_dir_path)
+        # Concatenate m4b files into a single m4b file
+        concat_m4b_path = concat_audio(files_m4b, temp_dir_path, args.filetype)
+
+    elif args.chapters == 'cue':
+        files: list = create_sorted_list_of_files(args.input, args.filetype)
+
+        concat_path = concat_audio(files, temp_dir_path, args.filetype)
+
+        if args.filetype == 'mp3':
+            audio = MP3(concat_audio)
+
+
+        elif args.filetype == 'm4b':
+            audio = MP4(concat_audio)
+        audio_duration = audio.info.length
+
+        cue_sheet_path: str = create_sorted_list_of_files(args.input, "cue")[0]
+        chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
+        parse_cue_sheet(cue_sheet_path, chapters_path, audio_duration)
+
 
     print("Embeding metadata")
     metadata_m4b_path = os.path.join(temp_dir_path, "metadata.m4b")
     embed_metadata(concat_m4b_path, metadata_m4b_path, metadata)
 
-    if not args.no_chapterize:
+    if not args.chapters == "none":
         chapterize_m4b_path = os.path.join(temp_dir_path, "chapterized.m4b")
         chapterize_m4b(metadata_m4b_path, chapters_path, chapterize_m4b_path)
         shutil.move(chapterize_m4b_path, os.path.join(args.output, f"{metadata["album"]}.m4b"))
