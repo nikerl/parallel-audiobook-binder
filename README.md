@@ -1,18 +1,22 @@
 ## Parallel Audiobook Binder
 This is a fully parallelized audiobook binder.
-Features:
+
+### Features:
 - Parallelized MP3 to M4B conversion
 - Set chapters from either a CUE sheet or chapterized MP3 files
 - Sort input files by ID3v2 track number if available, alphabetically if not
 
 ### Installation
 - Clone the repo
-- Install requirements: `pip3 install -r requirments.txt`
+- Install requirements: 
+```bash
+pip3 install -r requirments.txt
+```
 
 ### Running the program
-Usage: 
+Run binder.py using the following command: 
 ```bash
-python3 binder.py [-h] [-i INPUT] [-o OUTPUT] [-b BITRATE] -c {mp3files,cue,none} -t {mp3,m4b}
+python3 binder.py [-i INPUT] [-o OUTPUT] [-b BITRATE] -c {mp3files,cue,none} -t {mp3,m4b}
 ```
 
 Arguments:
