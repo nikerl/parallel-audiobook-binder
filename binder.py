@@ -212,6 +212,10 @@ def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
 
 
 def parse_cue_sheet(cue_file_path: str, chapters_path: str, audio_length: str):
+    """
+    Parses a CUE sheet and converts it to a FFMPEG chapter file
+    Takes the path to the cue file, the path to the output chapter file, and the length of the audio file
+    """
     cue = open(cue_file_path, 'r')
     cueSheet = cue.readlines()
     cue.close()
@@ -264,12 +268,12 @@ def split_mp3(mp3_path: str, mp3_file_list: list, temp_dir: str, split_count: in
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Script to process a zip file of CSVs')
-    parser.add_argument('-i', '--input', type=str, default='./', help='Path to the mp3 files (optional, default is current directory)')
+    parser = argparse.ArgumentParser(description='A highly parallelized audiobook binder')
+    parser.add_argument('-i', '--input', type=str, default='./', help='Path to the input files (optional, default is current directory)')
     parser.add_argument('-o', '--output', type=str, default='./', help='Path to the output file (optional, default is current directory)')
     parser.add_argument('-b', '--bitrate', type=int, default=128, help='Bitrate of the output m4b file in kb/s (optional, default is 128k, use "-1" to get the same bitrate as the input mp3 files)')
     # parser.add_argument('--no-chapterize', action='store_true', help='Prevent embeding of chapters in m4b file (optional)')
-    parser.add_argument('-c', '--chapters', type=str, choices=['mp3files', 'cue', 'none'], required=True, help='Set the source for chapter data, options: Chapterized -mp3files-, -cue- sheet, or -none- to not chapterize')
+    parser.add_argument('-c', '--chapters', type=str, choices=['mp3files', 'cue', 'none'], required=True, help='Set the source for chapter data. Use "mp3files" to use each mp3 file as a chapter, "cue" to get chapter data from a CUE sheet, "none" to not embed chapters')
     parser.add_argument('-t', '--filetype', type=str, choices=['mp3', 'm4b'], required=True, help='Filetype, mp3 or m4b')
     args = parser.parse_args()
 
@@ -281,7 +285,7 @@ def main() -> None:
 
     # Initialize variables
     metadata: dict = None
-    concat_m4b_path = None
+    concat_m4b_path: str = None
 
     if args.chapters == 'mp3files':
         # Sort mp3 files by track number or alphabetically if no track number is available
