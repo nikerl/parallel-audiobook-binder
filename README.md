@@ -1,5 +1,9 @@
 ## Parallel Audiobook Binder
-This is a fully parallelized audiobook binder / MP3 to M4B converter.
+This is a fully parallelized audiobook binder.
+Features:
+- Parallelized MP3 to M4B conversion
+- Set chapters from either a CUE sheet or chapterized MP3 files
+- Sort input files by ID3v2 track number if available, alphabetically if not
 
 ### Installation
 - Clone the repo
