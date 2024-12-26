@@ -277,17 +277,21 @@ def parse_cue_sheet(cue_file_path: str, chapters_path: str, audio_length: str):
 
 
 def split_mp3(mp3_path: str, mp3_file_list: list, temp_dir: str, split_count: int):
+    """ 
+    Split an mp3 file into a number of equal length mp3 files. 
+    """
     duration = MP3(mp3_path).info.length
     split_duration = duration / split_count
 
-    for i in range(split_count):
-        start_time = i * split_duration
-        if i == split_count - 1: split_duration = start_time - duration
+    # Use ffmpeg's segment option to split the file
+    os.system(f"ffmpeg -hide_banner -loglevel panic -i {mp3_path} -f segment -segment_time {split_duration} -c copy {temp_dir}/part-%04d.mp3")
 
-        split_mp3 = os.path.join(temp_dir, f"part-{i}.mp3")
-        os.system(f"ffmpeg -i {mp3_path} -ss {start_time} -t {split_duration} -c copy {split_mp3}")
-        mp3_file_list.append(split_mp3)
-        
+    # Collect the split files
+    for i in range(split_count):
+        split_mp3 = os.path.join(temp_dir, f"part-{i:04}.mp3")
+        if os.path.exists(split_mp3):
+            mp3_file_list.append(split_mp3)
+
 
 
 def main() -> None:
