@@ -152,6 +152,10 @@ def main() -> None:
     
     shutil.rmtree(temp_dir_path)
 
+    # Fix for terminal becoming unresponsive on linux
+    if os.name != "nt":
+        os.system("stty sane")
+
     print("Done!")
 
 
