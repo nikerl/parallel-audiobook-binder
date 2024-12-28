@@ -1,10 +1,11 @@
 ## Parallel Audiobook Binder
-This is a fully parallelized audiobook binder.
+Parallel Audiobook Binder is, as the name implies, a fully parallelized audiobook binder aka MP3 to M4B converter. It supports setting chapters from either MP3 files or from a CUE sheet.
 
 ### Features:
-- Parallelized MP3 to M4B conversion
-- Set chapters from either a CUE sheet or chapterized MP3 files
-- Sort input files by ID3v2 track number if available, alphabetically if not
+- **Parallelized Conversion:** Parallelized audio trancoding from MP3 to M4B/AAC
+- **Chapter Support:** Set chapters from CUE sheets or chapterized MP3 files.
+- **Sorting Mechanism:** Sort input files by ID3v2 track number if available, or alphabetically if not.
+- **Metadata Management:** Extracts and embeds metadata such as author, title, and release date.
 
 ### Installation
 - Clone the repo
@@ -30,6 +31,6 @@ Arguments:
 |-c {files,cue,none}, --chapters {files,cue,none}|Set the source for chapter data. Use "files" to use each mp3 file as a chapter, "cue" to get chapter data from a CUE sheet, "none" to not embed chapters (Required)|
 
 ### Dependencies
-- Python 3
+- Python3
 - pip3
-- ffmpeg
+- FFmpeg
