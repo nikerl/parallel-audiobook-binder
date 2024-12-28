@@ -129,6 +129,14 @@ def convert_no_chapters(temp_dir_path: str, input_dir: str, bitrate: int):
     return convert_cue_sheet(temp_dir_path, None, input_dir, bitrate)
 
 
+def cleanup(temp_dir_path: str):
+    shutil.rmtree(temp_dir_path)
+
+    # Fix for terminal becoming unresponsive on linux
+    if os.name != "nt":
+        os.system("stty sane")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='A highly parallelized audiobook binder')
     parser.add_argument('-i', '--input', type=str, default='./', help='Path to the input files (optional, default is current directory)')
@@ -154,10 +162,14 @@ def main() -> None:
         metadata_dict, chapters_path, concat_m4b_path = convert_chapterized_files(temp_dir_path, args.input, args.bitrate)
 
     elif args.chapters == 'cue':
+        cue_sheet_path = None
         for file in os.listdir(args.input):
             if file.endswith(".cue"):
                 cue_sheet_path = os.path.join(args.input, file)
                 break
+        if cue_sheet_path is None:
+            cleanup(temp_dir_path)
+            raise Exception("No CUE file found, put the CUE file in the root of the book directory or use one of the other options for chapters")
         metadata_dict, chapters_path, concat_m4b_path = convert_cue_sheet(temp_dir_path, cue_sheet_path, args.input, args.bitrate)
 
     elif args.chapters == 'none':
@@ -175,11 +187,7 @@ def main() -> None:
     else:
         shutil.move(metadata_m4b_path, os.path.join(args.output, f"{metadata_dict['album']}.m4b"))
     
-    shutil.rmtree(temp_dir_path)
-
-    # Fix for terminal becoming unresponsive on linux
-    if os.name != "nt":
-        os.system("stty sane")
+    cleanup(temp_dir_path)
 
     print("Done!")
 
