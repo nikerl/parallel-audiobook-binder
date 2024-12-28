@@ -56,6 +56,79 @@ def create_sorted_list_of_files(path: str) -> list:
     return files
 
 
+def convert_chapterized_files(temp_dir_path: str, input_dir: str, bitrate: int):
+    """
+    Convert to m4b with chapterized files as the source of the chapters
+    """
+    # Sort mp3 files by track number or alphabetically if no track number is available
+    files_mp3: list = create_sorted_list_of_files(input_dir)
+
+    # Extract metadata from the first mp3 file
+    print("Extract metadata")
+    metadata_dict: dict = metadata.extract_metadata_mp3(files_mp3[0], bitrate)
+
+    # Convert mp3 files to m4a files in parallel
+    files_m4b = audio.parallel_mp3_to_m4a(files_mp3, metadata_dict["bitrate"], temp_dir_path)
+
+    # Create a file containing chapter information
+    chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
+    metadata.create_chapter_file(files_m4b, chapters_path)
+
+    # Concatenate m4b files into a single m4b file
+    concat_m4b_path = audio.concat_audio(files_m4b, temp_dir_path, ".m4b")
+
+    return metadata_dict, chapters_path, concat_m4b_path
+
+
+def convert_cue_sheet(temp_dir_path: str, cue_sheet_path: str, input_dir: str, bitrate: int):
+    """
+    Convert to m4b with a cue sheet as the source of the chapters
+    """
+    files: list = create_sorted_list_of_files(input_dir)
+
+    _, file_type = os.path.splitext(files[0])
+
+    print("Concatonate audio files")
+    concat_path = audio.concat_audio(files, temp_dir_path, file_type)
+
+    audio_duration = None
+    chapters_path = None
+
+    if file_type == '.mp3':
+        print("Extract metadata")
+        metadata_dict = metadata.extract_metadata_mp3(files[0], bitrate)
+        audio_duration = MP3(concat_path).info.length  # Use concat_path here
+
+        # Split into multiple files for parallel conversion
+        split_mp3_list = []
+        split_count = multiprocessing.cpu_count() * 2
+        audio.split_mp3(concat_path, split_mp3_list, temp_dir_path, split_count)
+
+        # Convert to m4b
+        files_m4b = audio.parallel_mp3_to_m4a(split_mp3_list, metadata_dict["bitrate"], temp_dir_path)
+        concat_m4b_path = audio.concat_audio(files_m4b, temp_dir_path, ".m4b")
+
+    elif file_type == '.m4b':
+        print("Extract metadata")
+        metadata_dict = metadata.extract_metadata_m4b(files[0], bitrate)
+        audio_duration = MP4(concat_path).info.length  # Use concat_path here
+        concat_m4b_path = concat_path
+
+    if cue_sheet_path is not None:
+        print("Parsing CUE sheet")  
+        chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
+        metadata.parse_cue_sheet(cue_sheet_path, chapters_path, audio_duration)
+
+    return metadata_dict, chapters_path, concat_m4b_path
+
+
+def convert_no_chapters(temp_dir_path: str, input_dir: str, bitrate: int):
+    """
+    Convert to m4b without embedding chapters
+    """
+    return convert_cue_sheet(temp_dir_path, None, input_dir, bitrate)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='A highly parallelized audiobook binder')
     parser.add_argument('-i', '--input', type=str, default='./', help='Path to the input files (optional, default is current directory)')
@@ -77,72 +150,24 @@ def main() -> None:
     temp_dir_path: str = os.path.join(args.input, ".temp")
     os.makedirs(temp_dir_path, exist_ok=True)
 
-    # Initialize variables
-    metadata_dict: dict = None
-    concat_m4b_path: str = None
-
     if args.chapters == 'files':
-        # Sort mp3 files by track number or alphabetically if no track number is available
-        files_mp3: list = create_sorted_list_of_files(args.input)
-
-        # Extract metadata from the first mp3 file
-        print("Extract metadata")
-        metadata_dict: dict = metadata.extract_metadata_mp3(files_mp3[0], args.bitrate)
-
-        # Convert mp3 files to m4a files in parallel
-        files_m4b = audio.parallel_mp3_to_m4a(files_mp3, metadata_dict["bitrate"], temp_dir_path)
-
-        # Create a file containing chapter information
-        chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
-        metadata.create_chapter_file(files_m4b, chapters_path)
-
-        # Concatenate m4b files into a single m4b file
-        concat_m4b_path = audio.concat_audio(files_m4b, temp_dir_path, ".m4b")
+        metadata_dict, chapters_path, concat_m4b_path = convert_chapterized_files(temp_dir_path, args.input, args.bitrate)
 
     elif args.chapters == 'cue':
-        files: list = create_sorted_list_of_files(args.input)
-
-        _, file_type = os.path.splitext(files[0])
-
-        print("Concatonate audio files")
-        concat_path = audio.concat_audio(files, temp_dir_path, file_type)
-
-        audio_duration = None
-
-        if file_type == '.mp3':
-            print("Extract metadata")
-            metadata_dict = metadata.extract_metadata_mp3(files[0], args.bitrate)
-            audio_duration = MP3(concat_path).info.length  # Use concat_path here
-
-            # Split into multiple files for parallel conversion
-            split_mp3_list = []
-            split_count = multiprocessing.cpu_count() * 2
-            audio.split_mp3(concat_path, split_mp3_list, temp_dir_path, split_count)
-
-            # Convert to m4b
-            files_m4b = audio.parallel_mp3_to_m4a(split_mp3_list, metadata_dict["bitrate"], temp_dir_path)
-            concat_m4b_path = audio.concat_audio(files_m4b, temp_dir_path, ".m4b")
-
-        elif file_type == '.m4b':
-            print("Extract metadata")
-            metadata_dict = metadata.extract_metadata_m4b(files[0], args.bitrate)
-            audio_duration = MP4(concat_path).info.length  # Use concat_path here
-            concat_m4b_path = concat_path
-
-        print("Parsing CUE sheet")
         for file in os.listdir(args.input):
             if file.endswith(".cue"):
                 cue_sheet_path = os.path.join(args.input, file)
                 break
-        
-        chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
-        metadata.parse_cue_sheet(cue_sheet_path, chapters_path, audio_duration)
+        metadata_dict, chapters_path, concat_m4b_path = convert_cue_sheet(temp_dir_path, cue_sheet_path, args.input, args.bitrate)
+
+    elif args.chapters == 'none':
+        metadata_dict, _, concat_m4b_path = convert_no_chapters(temp_dir_path, args.input, args.bitrate)
 
     print("Embeding metadata")
     metadata_m4b_path = os.path.join(temp_dir_path, "metadata.m4b")
     metadata.embed_metadata(concat_m4b_path, metadata_m4b_path, metadata_dict)
 
-    if not args.chapters == "none":
+    if not args.chapters == 'none':
         print("Embedding Chapters")
         chapterize_m4b_path = os.path.join(temp_dir_path, "chapterized.m4b")
         audio.chapterize_m4b(metadata_m4b_path, chapters_path, chapterize_m4b_path)
