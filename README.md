@@ -17,7 +17,7 @@ pip3 install -r requirments.txt
 ### Running the program
 Run binder.py using the following command: 
 ```bash
-python3 binder.py [-i INPUT] [-o OUTPUT] [-b BITRATE] -c {mp3files,cue,none}
+python3 binder.py [-i INPUT] [-o OUTPUT] [-b BITRATE] -c {files,cue,none}
 ```
 
 Arguments:
