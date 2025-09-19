@@ -17,7 +17,9 @@ def create_filelist(path: str, files: list) -> None:
     """
     with open(path, "w") as f:
         for file in files:
-            f.write(f"file '{os.path.join(os.getcwd(), file)}'\n")
+            filepath = os.path.abspath(file)
+            filepath = filepath.replace("'", "'\\''") # Escape single quotes in file paths
+            f.write(f"file '{filepath}'\n")
 
 
 def create_sorted_list_of_files(path: str) -> list:
