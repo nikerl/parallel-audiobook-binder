@@ -185,6 +185,9 @@ def main() -> None:
     if len(sys.argv) == 1:
         args = tui(args)
 
+    if args.chapters is None:
+        cleanup()
+        raise Exception("No chapter option selected, please use the -c/--chapters argument. See --help for more information.")
 
     # Resolve relative paths to absolute paths
     args.input = os.path.abspath(args.input)
