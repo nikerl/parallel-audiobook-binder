@@ -23,7 +23,7 @@ def signal_handler(sig, frame):
         
         print('\n\nExiting program...')
         # Attempt to cleanup temporary files
-        while True:
+        for _ in range(10):
             try:
                 cleanup()
                 break
