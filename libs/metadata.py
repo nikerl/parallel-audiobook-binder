@@ -30,14 +30,19 @@ def get_track_number(file_path: str, file_type: str) -> int:
             return 0
 
 
-def get_m4b_length(file: str) -> int:
+def get_audio_length(file: str) -> int:
     """
-    Get the length of an M4B file in seconds.
+    Get the length of an audio file in seconds.
 
-    :param file_path: Path to the M4B file.
+    :param file_path: Path to the audio file.
     :return: Length of the file in 1/10th of seconds.
     """
-    audio = MP4(file)
+
+    if file.endswith(".mp3"):
+        audio = MP3(file)
+    elif file.endswith(".m4b"):
+        audio = MP4(file)
+
     length: float = int(audio.info.length * 10)
     return length
 
@@ -53,7 +58,7 @@ def create_chapter_file(files: list, chapters_path: str) -> None:
             ch.write(f"[CHAPTER]\n")
             ch.write(f"TIMEBASE=1/10\n")
             ch.write(f"START={int(cumulative_length)}\n")
-            cumulative_length += get_m4b_length(file)
+            cumulative_length += get_audio_length(file)
             ch.write(f"END={int(cumulative_length)}\n")
             title = os.path.splitext(os.path.basename(file))[0][5:]
             ch.write(f"title={title}\n\n")
