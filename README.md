@@ -22,7 +22,7 @@ python3 binder.py
 
 Or run binder.py with command line arguments like so: 
 ```bash
-python3 binder.py [-i INPUT] [-o OUTPUT] [-b BITRATE] [-c {files,cue,none}]
+python3 binder.py [-i INPUT] [-o OUTPUT] [-b BITRATE] -c {files,cue,none}
 ```
 
 Arguments:
