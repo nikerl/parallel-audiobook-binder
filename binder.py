@@ -1,12 +1,40 @@
 import argparse
 import multiprocessing
 import os
+import sys
+import signal
 import shutil
+import time
+from tqdm import tqdm
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
 
 import libs.metadata as metadata
 import libs.audio as audio
+from libs.tui import tui
+
+
+def signal_handler(sig, frame):
+    # Only cleanup in the parent process, not in worker processes
+    if multiprocessing.current_process().name == 'MainProcess':
+        # Close any tqdm progress bars
+        for instance in list(tqdm._instances):
+            instance.close()
+        
+        print('\n\nExiting program...')
+        # Attempt to cleanup temporary files
+        while True:
+            try:
+                cleanup()
+                break
+            except PermissionError:
+                time.sleep(0.1)
+
+    sys.exit(0)
+
+def init_worker():
+    """Initialize worker process to ignore SIGINT"""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 def create_filelist(path: str, files: list) -> None:
@@ -131,8 +159,9 @@ def convert_no_chapters(temp_dir_path: str, input_dir: str, bitrate: int):
     return convert_cue_sheet(temp_dir_path, None, input_dir, bitrate)
 
 
-def cleanup(temp_dir_path: str):
-    shutil.rmtree(temp_dir_path)
+def cleanup():
+    if os.path.isdir(temp_dir_path):
+        shutil.rmtree(temp_dir_path)
 
     # Fix for terminal becoming unresponsive on linux
     if os.name != "nt":
@@ -140,7 +169,11 @@ def cleanup(temp_dir_path: str):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='A highly parallelized audiobook binder')
+    global temp_dir_path
+    temp_dir_path = ""
+
+    signal.signal(signal.SIGINT, signal_handler)
+
     parser.add_argument('-i', '--input', type=str, default='./', help='Path to the input files (optional, default is current directory)')
     parser.add_argument('-o', '--output', type=str, help='Path to the output file (optional, default is same as input)')
     parser.add_argument('-b', '--bitrate', type=int, default=128, help='Bitrate of the output m4b file in kb/s (optional, default is 128k, use "-1" to get the same bitrate as the input mp3 files)')
@@ -157,7 +190,7 @@ def main() -> None:
     print(f'Starting conversion of "{os.path.basename(args.input)}" to M4B')
 
     # Create temporary directory for processing files
-    temp_dir_path: str = os.path.join(args.input, ".temp")
+    temp_dir_path = os.path.join(args.input, ".temp")
     os.makedirs(temp_dir_path, exist_ok=True)
 
     if args.chapters == 'files':
@@ -189,7 +222,7 @@ def main() -> None:
     else:
         shutil.move(metadata_m4b_path, os.path.join(args.output, f"{metadata_dict['album']}.m4b"))
     
-    cleanup(temp_dir_path)
+    cleanup()
 
     print("Done!")
 

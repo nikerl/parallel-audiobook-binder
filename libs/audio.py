@@ -21,7 +21,7 @@ def mp3_to_m4b(sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
 
     # Convert mp3 to m4b, ignoring any video streams (e.g., cover images)
     command = [
-        "ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", mp3_path,
+        "ffmpeg", "-hide_banner", "-loglevel", "panic", "-y", "-i", mp3_path,
         "-vn", "-c:a", "aac", "-b:a", f"{bitrate}k", "-movflags", "+faststart",
         output_m4b_path
     ]
@@ -36,7 +36,7 @@ def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
     """
     output_m4b_paths = []
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor(initializer=binder.init_worker) as executor:
         futures = []
         for i, mp3_path in enumerate(files):
             futures.append(executor.submit(mp3_to_m4b, i, mp3_path, bitrate, output_path))
