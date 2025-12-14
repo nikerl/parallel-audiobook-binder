@@ -1,3 +1,14 @@
-__pycache__
+# Vscode
 .vscode
-venv-binder
+
+# Python
+__pycache__
+venv/
+
+# Binder temporary files
+.temp/
+
+# Audio files
+*.mp3
+*.m4a
+*.m4b
