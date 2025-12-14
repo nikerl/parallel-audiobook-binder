@@ -1,6 +1,7 @@
 import argparse
 import multiprocessing
 import os
+import subprocess
 import sys
 import signal
 import shutil
@@ -159,6 +160,26 @@ def convert_no_chapters(temp_dir_path: str, input_dir: str, bitrate: int):
     return convert_cue_sheet(temp_dir_path, None, input_dir, bitrate)
 
 
+def check_ffmpeg():
+    """Check if ffmpeg is installed and accessible"""
+    try:
+        subprocess.run(
+            ["ffmpeg", "-version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("Error: FFmpeg is not installed or not in PATH")
+        print("Please install FFmpeg from https://ffmpeg.org/download.html")
+        print("Or using package manager:")
+        print("  Windows: winget install Gyan.FFmpeg")
+        print("  Linux (deb): sudo apt install ffmpeg")
+        print("  macOS: brew install ffmpeg")
+        
+        sys.exit(1)
+
+
 def cleanup():
     if os.path.isdir(temp_dir_path):
         shutil.rmtree(temp_dir_path)
@@ -173,6 +194,8 @@ def main() -> None:
     temp_dir_path = ""
 
     signal.signal(signal.SIGINT, signal_handler)
+
+    check_ffmpeg()
 
     parser = argparse.ArgumentParser(description='A highly parallelized audiobook binder', epilog='Run without arguments to use the TUI')
     parser.add_argument('-i', '--input', type=str, default='./', help='Path to the input files (optional, default is current directory)')
