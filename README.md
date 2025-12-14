@@ -10,13 +10,13 @@ Parallel Audiobook Binder is, as the name implies, a fully parallelized audioboo
 ### Installation
 - Clone the repo
 - Install requirements: 
-```bash
-pip3 install -r requirments.txt
-```
+  ```bash
+  pip3 install -r requirments.txt
+  ```
 - Ensure that FFmpeg is installed, download from here as neccesary: https://ffmpeg.org/download.html
-```bash
-ffmpeg -version
-```
+  ```bash
+  ffmpeg -version
+  ```
 
 ### Running the program
 Run the TUI using the following command:
