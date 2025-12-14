@@ -174,11 +174,17 @@ def main() -> None:
 
     signal.signal(signal.SIGINT, signal_handler)
 
+    parser = argparse.ArgumentParser(description='A highly parallelized audiobook binder', epilog='Run without arguments to use the TUI')
     parser.add_argument('-i', '--input', type=str, default='./', help='Path to the input files (optional, default is current directory)')
     parser.add_argument('-o', '--output', type=str, help='Path to the output file (optional, default is same as input)')
     parser.add_argument('-b', '--bitrate', type=int, default=128, help='Bitrate of the output m4b file in kb/s (optional, default is 128k, use "-1" to get the same bitrate as the input mp3 files)')
-    parser.add_argument('-c', '--chapters', type=str, choices=['files', 'cue', 'none'], required=True, help='Set the source for chapter data. Use "files" to use each mp3 file as a chapter, "cue" to get chapter data from a CUE sheet, "none" to not embed chapters')
+    parser.add_argument('-c', '--chapters', type=str, choices=['files', 'cue', 'none'], help='Set the source for chapter data. Use "files" to use each mp3 file as a chapter, "cue" to get chapter data from a CUE sheet, "none" to not embed chapters')
     args = parser.parse_args()
+
+
+    if len(sys.argv) == 1:
+        args = tui(args)
+
 
     # Resolve relative paths to absolute paths
     args.input = os.path.abspath(args.input)
