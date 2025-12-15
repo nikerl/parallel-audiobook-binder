@@ -6,6 +6,7 @@ import concurrent.futures
 from tqdm import tqdm
 
 import binder
+from libs.tui import TUI_WIDTH
 
 
 def mp3_to_m4b(sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
@@ -42,7 +43,7 @@ def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
             futures.append(executor.submit(mp3_to_m4b, i, mp3_path, bitrate, output_path))
 
         # Create a progress bar
-        with tqdm(total=len(futures), desc="Processing MP3 to M4B", unit="chapter") as pbar:
+        with tqdm(total=len(futures), desc="Processing MP3 to M4B", unit="chapter", ncols=TUI_WIDTH) as pbar:
             for future in concurrent.futures.as_completed(futures):
                 output_m4b_paths.append(future.result())
                 pbar.update(1)  # Update the progress bar for each completed task

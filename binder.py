@@ -12,7 +12,7 @@ from mutagen.mp4 import MP4
 
 import libs.metadata as metadata
 import libs.audio as audio
-from libs.tui import tui
+from libs.tui import *
 
 
 def signal_handler(sig, frame):
@@ -190,8 +190,7 @@ def cleanup():
 
 
 def main() -> None:
-    global temp_dir_path
-    temp_dir_path = ""
+    global temp_dir_path; temp_dir_path = ""
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -207,6 +206,9 @@ def main() -> None:
 
     if len(sys.argv) == 1:
         args = tui(args)
+    else:
+        l : int = (TUI_WIDTH - 27) / 2
+        print("\n\n" + "%" * int(l) + " Parallel Audiobook Binder " + "%" * int(l))
 
     if args.chapters is None:
         cleanup()
@@ -219,7 +221,8 @@ def main() -> None:
     else:
         args.output = os.path.abspath(args.output)
 
-    print(f'Starting conversion of "{os.path.basename(args.input)}" to M4B')
+    lenght : int = (TUI_WIDTH - 22 - len(os.path.basename(args.input))); l = int(lenght / 2); r = l if lenght % 2 == 0 else l + 1
+    print('\n' + '%' * int(l) + f' Converting "{os.path.basename(args.input)}" to M4B ' + '%' * int(r) + '\n')
 
     # Create temporary directory for processing files
     temp_dir_path = os.path.join(args.input, ".temp")
@@ -256,7 +259,8 @@ def main() -> None:
     
     cleanup()
 
-    print("Done!")
+    l : int = (TUI_WIDTH - 7) / 2
+    print("\n" + "%" * int(l) + " Done! " + "%" * int(l) + "\n")
 
 
 if __name__ == '__main__':
