@@ -43,7 +43,7 @@ def create_sorted_list_of_files(path: str) -> list:
     files = []
     for file in dir:
         full_path = os.path.join(path, file)
-        if not os.path.isdir(full_path) and isAudioFile(full_path):
+        if not os.path.isdir(full_path) and is_audio_file(full_path):
             if file.endswith(file_type):
                 files.append(full_path)
             else:
@@ -57,7 +57,7 @@ def create_sorted_list_of_files(path: str) -> list:
     return files
 
 
-def isAudioFile(path: str) -> bool:
+def is_audio_file(path: str) -> bool:
     """ 
     Checks if a file is any of the following audio formats: 
     mp3, m4b, m4a, waw, ogg, flac, aac
