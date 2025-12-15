@@ -157,15 +157,15 @@ def check_ffmpeg():
             check=True
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("Error: FFmpeg is not installed or not in PATH")
-        print("Please install FFmpeg from https://ffmpeg.org/download.html")
-        print("Or using package manager:")
-        print("  Windows: winget install Gyan.FFmpeg")
-        print("  Linux (deb): sudo apt install ffmpeg")
-        print("  macOS: brew install ffmpeg")
-        
-        sys.exit(1)
-
+        sys.tracebacklimit = 0
+        raise Exception(
+            "FFmpeg is not installed or not in PATH\n"
+            "Please install FFmpeg from https://ffmpeg.org/download.html\n"
+            "Or using package manager:\n"
+            "  Windows: winget install Gyan.FFmpeg\n"
+            "  Linux (deb): sudo apt install ffmpeg\n"
+            "  macOS: brew install ffmpeg"
+        ) from None
 
 def cleanup():
     if os.path.isdir(temp_dir_path):
@@ -199,7 +199,8 @@ def main() -> None:
 
     if args.chapters is None:
         cleanup()
-        raise Exception("No chapter option selected, please use the -c/--chapters argument. See --help for more information.")
+        sys.tracebacklimit = 0
+        raise Exception("No chapter option selected, please use the -c/--chapters argument.\nSee --help for more information.")
 
     # Resolve relative paths to absolute paths
     args.input = os.path.abspath(args.input)
@@ -225,8 +226,9 @@ def main() -> None:
                 cue_sheet_path = os.path.join(args.input, file)
                 break
         if cue_sheet_path is None:
-            cleanup(temp_dir_path)
-            raise Exception("No CUE file found, put the CUE file in the root of the book directory or use one of the other options for chapters")
+            cleanup()
+            sys.tracebacklimit = 0
+            raise Exception("No CUE file found, put the CUE file in the root of the book directory,\nor use one of the other options for chapters")
         metadata_dict, chapters_path, concat_m4b_path = convert_cue_sheet(temp_dir_path, cue_sheet_path, args.input, args.bitrate)
 
     elif args.chapters == 'none':
