@@ -5,7 +5,7 @@ from mutagen.mp4 import MP4
 import concurrent.futures
 from tqdm import tqdm
 
-import binder
+from binder import init_worker
 from libs.metadata import create_filelist
 from libs.tui import TUI_WIDTH
 
@@ -38,7 +38,7 @@ def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
     """
     output_m4b_paths = []
 
-    with concurrent.futures.ProcessPoolExecutor(initializer=binder.init_worker) as executor:
+    with concurrent.futures.ProcessPoolExecutor(initializer=init_worker) as executor:
         futures = []
         for i, mp3_path in enumerate(files):
             futures.append(executor.submit(mp3_to_m4b, i, mp3_path, bitrate, output_path))
