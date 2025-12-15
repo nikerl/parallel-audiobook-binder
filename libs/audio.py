@@ -6,6 +6,7 @@ import concurrent.futures
 from tqdm import tqdm
 
 import binder
+from libs.metadata import create_filelist
 from libs.tui import TUI_WIDTH
 
 
@@ -57,7 +58,7 @@ def concat_audio(files: list, input_path: str, file_type: str) -> str:
     Concatenates m4b files into a single m4b file.
     """
     filelist_path = os.path.join(input_path, "filelist.txt")
-    binder.create_filelist(filelist_path, files)
+    create_filelist(filelist_path, files)
 
     concat_path = os.path.join(input_path, f"concat{file_type}")
     command = [

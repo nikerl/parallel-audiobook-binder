@@ -38,19 +38,6 @@ def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
-def create_filelist(path: str, files: list) -> None:
-    """ 
-    Create a filelist for ffmpeg to concatenate files.
-
-    Takes python list of file paths and a path to write the list to.
-    """
-    with open(path, "w") as f:
-        for file in files:
-            filepath = os.path.abspath(file)
-            filepath = filepath.replace("'", "'\\''") # Escape single quotes in file paths
-            f.write(f"file '{filepath}'\n")
-
-
 def create_sorted_list_of_files(path: str) -> list:
     """
     Creates a sorted list of files in a directory of a specific type.
