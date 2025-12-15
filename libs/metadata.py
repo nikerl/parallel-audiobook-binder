@@ -21,6 +21,53 @@ def create_filelist(path: str, files: list) -> None:
             f.write(f"file '{filepath}'\n")
 
 
+def create_sorted_list_of_files(path: str) -> list:
+    """
+    Creates a sorted list of files in a directory of a specific type.
+
+    MP3 files are sorted by ID3v2 track number if available. All other files are sorted 
+    by alphabetically by file name
+    """
+
+    dir = os.listdir(path)
+    _, file_type = os.path.splitext(dir[0])
+
+    numMP3 = 0
+    numM4B = 0
+    for file in dir:
+        if file.endswith(".mp3"): numMP3 += 1
+        if file.endswith(".m4b"): numM4B += 1
+    if numMP3 > numM4B: file_type = ".mp3"
+    else: file_type = ".m4b"
+
+    files = []
+    for file in dir:
+        full_path = os.path.join(path, file)
+        if not os.path.isdir(full_path) and isAudioFile(full_path):
+            if file.endswith(file_type):
+                files.append(full_path)
+            else:
+                print("Ignoring: " + file)
+    
+    files.sort()
+    
+    if file_type == ".mp3" or file_type == ".m4b":
+        files.sort(key=lambda file: get_track_number(os.path.join(path, file), file_type))
+
+    return files
+
+
+def isAudioFile(path: str) -> bool:
+    """ 
+    Checks if a file is any of the following audio formats: 
+    mp3, m4b, m4a, waw, ogg, flac, aac
+    """
+    audio_formats = [".mp3", ".m4b", ".m4a", ".waw", ".ogg", ".flac", ".aac"]
+    _, file_type = os.path.splitext(path)
+    if file_type in audio_formats: return True
+    else: return False
+
+
 def get_track_number(file_path: str, file_type: str) -> int:
     """ 
     Get track number from audio file

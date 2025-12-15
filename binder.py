@@ -38,48 +38,12 @@ def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
-def create_sorted_list_of_files(path: str) -> list:
-    """
-    Creates a sorted list of files in a directory of a specific type.
-
-    MP3 files are sorted by ID3v2 track number if available. All other files are sorted 
-    by alphabetically by file name
-    """
-
-    dir = os.listdir(path)
-    _, file_type = os.path.splitext(dir[0])
-
-    numMP3 = 0
-    numM4B = 0
-    for file in dir:
-        if file.endswith(".mp3"): numMP3 += 1
-        if file.endswith(".m4b"): numM4B += 1
-    if numMP3 > numM4B: file_type = ".mp3"
-    else: file_type = ".m4b"
-
-    files = []
-    for file in dir:
-        full_path = os.path.join(path, file)
-        if not os.path.isdir(full_path) and audio.isAudioFile(full_path):
-            if file.endswith(file_type):
-                files.append(full_path)
-            else:
-                print("Ignoring: " + file)
-    
-    files.sort()
-    
-    if file_type == ".mp3" or file_type == ".m4b":
-        files.sort(key=lambda file: metadata.get_track_number(os.path.join(path, file), file_type))
-
-    return files
-
-
 def convert_chapterized_files(temp_dir_path: str, input_dir: str, bitrate: int):
     """
     Convert to m4b with chapterized files as the source of the chapters
     """
     # Sort mp3 files by track number or alphabetically if no track number is available
-    files_mp3: list = create_sorted_list_of_files(input_dir)
+    files_mp3: list = metadata.create_sorted_list_of_files(input_dir)
 
     # Extract metadata from the first mp3 file
     print("Extract metadata")
@@ -102,7 +66,7 @@ def convert_cue_sheet(temp_dir_path: str, cue_sheet_path: str, input_dir: str, b
     """
     Convert to m4b with a cue sheet as the source of the chapters
     """
-    files: list = create_sorted_list_of_files(input_dir)
+    files: list = metadata.create_sorted_list_of_files(input_dir)
 
     _, file_type = os.path.splitext(files[0])
 
@@ -166,6 +130,7 @@ def check_ffmpeg():
             "  Linux (deb): sudo apt install ffmpeg\n"
             "  macOS: brew install ffmpeg"
         ) from None
+
 
 def cleanup():
     if os.path.isdir(temp_dir_path):

@@ -104,14 +104,3 @@ def chapterize_m4b(m4b_path: str, chapters_path: str, output_path: str) -> None:
     subprocess.run(command, check=True)
     os.remove(chapters_path)
     os.remove(m4b_path)
-
-
-def isAudioFile(path: str) -> bool:
-    """ 
-    Checks if a file is any of the following audio formats: 
-    mp3, m4b, m4a, waw, ogg, flac, aac
-    """
-    audio_formats = [".mp3", ".m4b", ".m4a", ".waw", ".ogg", ".flac", ".aac"]
-    _, file_type = os.path.splitext(path)
-    if file_type in audio_formats: return True
-    else: return False
