@@ -104,3 +104,19 @@ def chapterize_m4b(m4b_path: str, chapters_path: str, output_path: str) -> None:
     subprocess.run(command, check=True)
     os.remove(chapters_path)
     os.remove(m4b_path)
+
+
+def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
+    """
+    Embeds artist, album, and date metadata in a m4b file.
+    """
+    command = [
+        "ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", input_file,
+        "-c", "copy",
+        "-metadata", f'artist={metadata["artist"]}',
+        "-metadata", f'album={metadata["album"]}',
+        "-metadata", f'date={metadata["date"]}',
+        output_file
+    ]
+    subprocess.run(command, check=True)
+    os.remove(input_file)

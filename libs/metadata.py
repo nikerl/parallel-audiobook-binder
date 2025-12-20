@@ -166,22 +166,6 @@ def extract_metadata_m4b(file: str, bitrate: int) -> dict:
     return {'artist': artist, 'album': album, 'date': date, 'bitrate': bitrate}
 
 
-def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
-    """
-    Embeds artist, album, and date metadata in a m4b file.
-    """
-    command = [
-        "ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", input_file,
-        "-c", "copy",
-        "-metadata", f'artist={metadata["artist"]}',
-        "-metadata", f'album={metadata["album"]}',
-        "-metadata", f'date={metadata["date"]}',
-        output_file
-    ]
-    subprocess.run(command, check=True)
-    os.remove(input_file)
-
-
 def parse_cue_sheet(cue_file_path: str, chapters_path: str, audio_length: str):
     """
     Parses a CUE sheet and converts it to a FFMPEG chapter file

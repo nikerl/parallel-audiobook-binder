@@ -228,7 +228,7 @@ def main() -> None:
 
     print("Embeding metadata")
     metadata_m4b_path = os.path.join(temp_dir_path, "metadata.m4b")
-    metadata.embed_metadata(concat_m4b_path, metadata_m4b_path, metadata_dict)
+    audio.embed_metadata(concat_m4b_path, metadata_m4b_path, metadata_dict)
 
     output_file_path = sanitize_filename(metadata_dict['album'])
     if not args.chapters == 'none':
