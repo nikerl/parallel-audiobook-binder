@@ -197,3 +197,18 @@ def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
     ]
     _run_subprocess(command)
     os.remove(input_file)
+
+
+def finalize_m4b(input_file: str, output_file: str,
+                 metadata: dict, chapters_path: str | None = None) -> None:
+    command = ["ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", input_file]
+    if chapters_path:
+        command += ["-i", chapters_path]
+    command += ["-c", "copy"]
+    for key in ("artist", "album", "date"):
+        if metadata.get(key):
+            command += ["-metadata", f"{key}={metadata[key]}"]
+    if chapters_path:
+        command += ["-map", "0:a", "-map_chapters", "1"]
+    command.append(output_file)
+    _run_subprocess(command)

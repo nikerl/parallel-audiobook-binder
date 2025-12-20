@@ -1,6 +1,5 @@
 from math import ceil
 import os
-import subprocess
 import sys
 from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
@@ -120,7 +119,7 @@ def create_chapter_file(files: list, chapters_path: str) -> None:
             ch.write(f"START={int(cumulative_length)}\n")
             cumulative_length += get_audio_length(file)
             ch.write(f"END={int(cumulative_length)}\n")
-            title = os.path.splitext(os.path.basename(file))[0][5:]
+            title = os.path.splitext(os.path.basename(file))[0]
             ch.write(f"title={title}\n\n")
 
 
@@ -169,7 +168,7 @@ def extract_metadata_m4b(file: str, bitrate: int) -> dict:
 def parse_cue_sheet(cue_file_path: str, chapters_path: str, audio_length: str):
     """
     Parses a CUE sheet and converts it to a FFMPEG chapter file
-    Takes the path to the cue file, the path to the output chapter file, and the length of the audio file
+    Takes the path to the cue file, the path to the output chapter file, and the length of the audio file in seconds.
     """
     cue = open(cue_file_path, 'r')
     cueSheet = cue.readlines()
@@ -204,5 +203,5 @@ def parse_cue_sheet(cue_file_path: str, chapters_path: str, audio_length: str):
             if i < len(chapters) - 1:
                 ch.write(f"END={int(chapters[i+1]['length'] * 10)}\n")
             else:
-                ch.write(f"END={int(audio_length * 10)}\n")
+                ch.write(f"END={int(audio_length)}\n")
             ch.write(f"title={chapters[i]['title']}\n\n")
