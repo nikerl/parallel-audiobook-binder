@@ -154,6 +154,17 @@ def cleanup():
         os.system("stty sane")
 
 
+def sanitize_filename(filename: str) -> str:
+    """Remove or replace illegal characters from filename"""
+    # Characters not allowed in Windows filenames
+    illegal_chars = '<>:"/\\|?*'
+    for char in illegal_chars:
+        filename = filename.replace(char, '-')
+    # Remove leading/trailing spaces and dots (Windows doesn't allow these)
+    filename = filename.strip('. ')
+    return filename
+
+
 def main() -> None:
     global temp_dir_path; temp_dir_path = ""
 
@@ -219,13 +230,14 @@ def main() -> None:
     metadata_m4b_path = os.path.join(temp_dir_path, "metadata.m4b")
     metadata.embed_metadata(concat_m4b_path, metadata_m4b_path, metadata_dict)
 
+    output_file_path = sanitize_filename(metadata_dict['album'])
     if not args.chapters == 'none':
         print("Embedding Chapters")
         chapterize_m4b_path = os.path.join(temp_dir_path, "chapterized.m4b")
         audio.chapterize_m4b(metadata_m4b_path, chapters_path, chapterize_m4b_path)
-        shutil.move(chapterize_m4b_path, os.path.join(args.output, f"{metadata_dict['album']}.m4b"))
+        shutil.move(chapterize_m4b_path, os.path.join(args.output, f"{output_file_path}.m4b"))
     else:
-        shutil.move(metadata_m4b_path, os.path.join(args.output, f"{metadata_dict['album']}.m4b"))
+        shutil.move(metadata_m4b_path, os.path.join(args.output, f"{output_file_path}.m4b"))
     
     cleanup()
 
