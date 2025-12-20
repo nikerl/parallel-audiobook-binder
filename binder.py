@@ -132,6 +132,19 @@ def check_ffmpeg():
         ) from None
 
 
+def arg_problems():
+    cleanup()
+    sys.tracebacklimit = 0
+    if os.name == "nt":
+        raise Exception(
+            "Either no chapter option selected, please use the -c/--chapters argument.\n"
+            "Or there are trailing backslashes in the input or output path, remove them.\n"
+            "See --help for more information."
+        ) from None
+    else:
+        raise Exception("No chapter option selected, please use the -c/--chapters argument.\nSee --help for more information.")
+
+
 def cleanup():
     if os.path.isdir(temp_dir_path):
         shutil.rmtree(temp_dir_path)
@@ -153,7 +166,10 @@ def main() -> None:
     parser.add_argument('-o', '--output', type=str, help='Path to the output file (optional, default is same as input)')
     parser.add_argument('-b', '--bitrate', type=int, default=128, help='Bitrate of the output m4b file in kb/s (optional, default is 128k, use "-1" to get the same bitrate as the input mp3 files)')
     parser.add_argument('-c', '--chapters', type=str, choices=['files', 'cue', 'none'], help='Set the source for chapter data. Use "files" to use each mp3 file as a chapter, "cue" to get chapter data from a CUE sheet, "none" to not embed chapters')
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except SystemExit:
+        arg_problems()
 
 
     if len(sys.argv) == 1:
@@ -162,10 +178,10 @@ def main() -> None:
         l : int = (TUI_WIDTH - 27) / 2
         print("\n\n" + "%" * int(l) + " Parallel Audiobook Binder " + "%" * int(l))
 
+
     if args.chapters is None:
-        cleanup()
-        sys.tracebacklimit = 0
-        raise Exception("No chapter option selected, please use the -c/--chapters argument.\nSee --help for more information.")
+        arg_problems()
+
 
     # Resolve relative paths to absolute paths
     args.input = os.path.abspath(args.input)
