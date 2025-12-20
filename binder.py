@@ -18,6 +18,8 @@ from libs.tui import *
 def signal_handler(sig, frame):
     # Only cleanup in the parent process, not in worker processes
     if multiprocessing.current_process().name == 'MainProcess':
+        audio.cancel_active_executors()
+        audio.terminate_active_processes()
         # Close any tqdm progress bars
         for instance in list(tqdm._instances):
             instance.close()

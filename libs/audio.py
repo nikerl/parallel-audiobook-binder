@@ -1,13 +1,87 @@
 import os
 import subprocess
+import threading
+import concurrent.futures
+from contextlib import contextmanager
+from concurrent.futures.process import BrokenProcessPool
+from typing import Sequence
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
-import concurrent.futures
 from tqdm import tqdm
 
 from binder import init_worker
 from libs.metadata import create_filelist
 from libs.tui import TUI_WIDTH
+
+
+_process_lock = threading.Lock()
+_active_processes = set()
+_executor_lock = threading.Lock()
+_active_executors = set()
+
+def _register_executor(executor: concurrent.futures.ProcessPoolExecutor) -> None:
+    with _executor_lock:
+        _active_executors.add(executor)
+
+def _deregister_executor(executor: concurrent.futures.ProcessPoolExecutor) -> None:
+    with _executor_lock:
+        _active_executors.discard(executor)
+
+def _shutdown_executor(executor: concurrent.futures.ProcessPoolExecutor, wait: bool = True) -> None:
+    try:
+        executor.shutdown(wait=wait)
+    except BrokenProcessPool:
+        pass
+
+@contextmanager
+def _managed_executor(*args, **kwargs):
+    executor = concurrent.futures.ProcessPoolExecutor(*args, **kwargs)
+    _register_executor(executor)
+    try:
+        yield executor
+    finally:
+        _deregister_executor(executor)
+        _shutdown_executor(executor, wait=True)
+
+def _run_subprocess(command: Sequence[str], **kwargs) -> None:
+    process = subprocess.Popen(command, **kwargs)
+    with _process_lock:
+        _active_processes.add(process)
+    try:
+        process.communicate()
+    except Exception:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        raise
+    finally:
+        with _process_lock:
+            _active_processes.discard(process)
+    if process.returncode != 0:
+        raise subprocess.CalledProcessError(process.returncode, command)
+
+def terminate_active_processes() -> None:
+    with _process_lock:
+        processes = list(_active_processes)
+    for process in processes:
+        if process.poll() is None:
+            try:
+                process.kill()
+            except Exception:
+                pass
+
+def cancel_active_executors() -> None:
+    with _executor_lock:
+        executors = list(_active_executors)
+    for executor in executors:
+        processes = getattr(executor, "_processes", {})
+        for process in processes.values():
+            if process.is_alive():
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+        _shutdown_executor(executor, wait=False)
 
 
 def mp3_to_m4b(sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
@@ -27,7 +101,7 @@ def mp3_to_m4b(sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
         "-vn", "-c:a", "aac", "-b:a", f"{bitrate}k", "-movflags", "+faststart",
         output_m4b_path
     ]
-    subprocess.run(command, check=True)
+    _run_subprocess(command)
 
     return output_m4b_path
 
@@ -38,7 +112,7 @@ def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
     """
     output_m4b_paths = []
 
-    with concurrent.futures.ProcessPoolExecutor(initializer=init_worker) as executor:
+    with _managed_executor(initializer=init_worker) as executor:
         futures = []
         for i, mp3_path in enumerate(files):
             futures.append(executor.submit(mp3_to_m4b, i, mp3_path, bitrate, output_path))
@@ -46,7 +120,10 @@ def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
         # Create a progress bar
         with tqdm(total=len(futures), desc="Processing MP3 to M4B", unit="chapter", ncols=TUI_WIDTH) as pbar:
             for future in concurrent.futures.as_completed(futures):
-                output_m4b_paths.append(future.result())
+                try:
+                    output_m4b_paths.append(future.result())
+                except (concurrent.futures.CancelledError, BrokenProcessPool):
+                    break
                 pbar.update(1)  # Update the progress bar for each completed task
 
     output_m4b_paths.sort()
@@ -65,7 +142,7 @@ def concat_audio(files: list, input_path: str, file_type: str) -> str:
         "ffmpeg", "-hide_banner", "-loglevel", "panic", "-f", "concat", "-safe", "0",
         "-i", filelist_path, "-c:a", "copy", concat_path
     ]
-    subprocess.run(command, check=True)
+    _run_subprocess(command)
 
     return concat_path
 
@@ -83,7 +160,7 @@ def split_mp3(mp3_path: str, mp3_file_list: list, temp_dir: str, split_count: in
         "-f", "segment", "-segment_time", str(split_duration), "-c", "copy",
         os.path.join(temp_dir, "part-%04d.mp3")
     ]
-    subprocess.run(command, check=True)
+    _run_subprocess(command)
 
     # Collect the split files
     for i in range(split_count):
@@ -101,7 +178,7 @@ def chapterize_m4b(m4b_path: str, chapters_path: str, output_path: str) -> None:
         "-i", chapters_path, "-c", "copy", "-map", "0:a", "-map_chapters", "1",
         output_path
     ]
-    subprocess.run(command, check=True)
+    _run_subprocess(command)
     os.remove(chapters_path)
     os.remove(m4b_path)
 
@@ -118,5 +195,5 @@ def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
         "-metadata", f'date={metadata["date"]}',
         output_file
     ]
-    subprocess.run(command, check=True)
+    _run_subprocess(command)
     os.remove(input_file)
