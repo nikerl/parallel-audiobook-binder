@@ -12,3 +12,10 @@ venv/
 *.mp3
 *.m4a
 *.m4b
+
+# Metadata files
+*.cue
+*.nfo
+
+# Windows files
+desktop.ini
