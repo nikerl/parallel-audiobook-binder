@@ -1,22 +1,22 @@
 import argparse
 import multiprocessing
 import os
-import subprocess
 import sys
 import signal
 import shutil
 import time
-from tqdm import tqdm
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
+from tqdm import tqdm
 
 import libs.metadata as metadata
 import libs.audio as audio
-from libs.tui import *
+import libs.tui as tui
+import libs.utils as utils
 
 
 def signal_handler(sig, frame):
-    # Only cleanup in the parent process, not in worker processes
+    """Handle SIGINT signal (Ctrl+C) to cleanup and exit gracefully"""
     if multiprocessing.current_process().name == 'MainProcess':
         audio.cancel_active_executors()
         audio.terminate_active_processes()
@@ -28,7 +28,7 @@ def signal_handler(sig, frame):
         # Attempt to cleanup temporary files
         for _ in range(10):
             try:
-                cleanup()
+                utils.cleanup(temp_dir_path)
                 break
             except PermissionError:
                 time.sleep(0.1)
@@ -113,66 +113,12 @@ def convert_no_chapters(temp_dir_path: str, input_dir: str, bitrate: int):
     return convert_cue_sheet(temp_dir_path, None, input_dir, bitrate)
 
 
-def check_ffmpeg():
-    """Check if ffmpeg is installed and accessible"""
-    try:
-        subprocess.run(
-            ["ffmpeg", "-version"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        sys.tracebacklimit = 0
-        raise Exception(
-            "FFmpeg is not installed or not in PATH\n"
-            "Please install FFmpeg from https://ffmpeg.org/download.html\n"
-            "Or using package manager:\n"
-            "  Windows: winget install Gyan.FFmpeg\n"
-            "  Linux (deb): sudo apt install ffmpeg\n"
-            "  macOS: brew install ffmpeg"
-        ) from None
-
-
-def arg_problems():
-    cleanup()
-    sys.tracebacklimit = 0
-    if os.name == "nt":
-        raise Exception(
-            "Either no chapter option selected, please use the -c/--chapters argument.\n"
-            "Or there are trailing backslashes in the input or output path, remove them.\n"
-            "See --help for more information."
-        ) from None
-    else:
-        raise Exception("No chapter option selected, please use the -c/--chapters argument.\nSee --help for more information.")
-
-
-def cleanup():
-    if os.path.isdir(temp_dir_path):
-        shutil.rmtree(temp_dir_path)
-
-    # Fix for terminal becoming unresponsive on linux
-    if os.name != "nt":
-        os.system("stty sane")
-
-
-def sanitize_filename(filename: str) -> str:
-    """Remove or replace illegal characters from filename"""
-    # Characters not allowed in Windows filenames
-    illegal_chars = '<>:"/\\|?*'
-    for char in illegal_chars:
-        filename = filename.replace(char, '-')
-    # Remove leading/trailing spaces and dots (Windows doesn't allow these)
-    filename = filename.strip('. ')
-    return filename
-
-
 def main() -> None:
     global temp_dir_path; temp_dir_path = ""
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    check_ffmpeg()
+    utils.check_ffmpeg()
 
     parser = argparse.ArgumentParser(description='A highly parallelized audiobook binder', epilog='Run without arguments to use the TUI')
     parser.add_argument('-i', '--input', type=str, default='./', help='Path to the input files (optional, default is current directory)')
@@ -182,18 +128,18 @@ def main() -> None:
     try:
         args = parser.parse_args()
     except SystemExit:
-        arg_problems()
+        utils.arg_problems(temp_dir_path)
 
 
     if len(sys.argv) == 1:
-        args = tui(args)
+        args = tui.tui(args)
     else:
-        l : int = (TUI_WIDTH - 27) / 2
+        l : int = (tui.TUI_WIDTH - 27) / 2
         print("\n\n" + "%" * int(l) + " Parallel Audiobook Binder " + "%" * int(l))
 
 
     if args.chapters is None:
-        arg_problems()
+        utils.arg_problems(temp_dir_path)
 
 
     # Resolve relative paths to absolute paths
@@ -203,7 +149,7 @@ def main() -> None:
     else:
         args.output = os.path.abspath(args.output)
 
-    lenght : int = (TUI_WIDTH - 22 - len(os.path.basename(args.input))); l = int(lenght / 2); r = l if lenght % 2 == 0 else l + 1
+    lenght : int = (tui.TUI_WIDTH - 22 - len(os.path.basename(args.input))); l = int(lenght / 2); r = l if lenght % 2 == 0 else l + 1
     print('\n' + '%' * int(l) + f' Converting "{os.path.basename(args.input)}" to M4B ' + '%' * int(r) + '\n')
 
     # Create temporary directory for processing files
@@ -220,7 +166,7 @@ def main() -> None:
                 cue_sheet_path = os.path.join(args.input, file)
                 break
         if cue_sheet_path is None:
-            cleanup()
+            utils.cleanup(temp_dir_path)
             sys.tracebacklimit = 0
             raise Exception("No CUE file found, put the CUE file in the root of the book directory,\nor use one of the other options for chapters")
         metadata_dict, chapters_path, concat_m4b_path = convert_cue_sheet(temp_dir_path, cue_sheet_path, args.input, args.bitrate)
@@ -232,7 +178,7 @@ def main() -> None:
     metadata_m4b_path = os.path.join(temp_dir_path, "metadata.m4b")
     audio.embed_metadata(concat_m4b_path, metadata_m4b_path, metadata_dict)
 
-    output_file_path = sanitize_filename(metadata_dict['album'])
+    output_file_path = utils.sanitize_filename(metadata_dict['album'])
     if not args.chapters == 'none':
         print("Embedding Chapters")
         chapterize_m4b_path = os.path.join(temp_dir_path, "chapterized.m4b")
@@ -241,9 +187,9 @@ def main() -> None:
     else:
         shutil.move(metadata_m4b_path, os.path.join(args.output, f"{output_file_path}.m4b"))
     
-    cleanup()
+    utils.cleanup(temp_dir_path)
 
-    l : int = (TUI_WIDTH - 7) / 2
+    l : int = (tui.TUI_WIDTH - 7) / 2
     print("\n" + "%" * int(l) + " Done! " + "%" * int(l) + "\n")
 
 
