@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import threading
 import concurrent.futures
@@ -10,7 +11,7 @@ from mutagen.mp4 import MP4
 from tqdm import tqdm
 
 from binder import init_worker
-from libs.metadata import create_filelist
+from libs.metadata import create_filelist, set_track_number
 from libs.tui import TUI_WIDTH
 
 
@@ -84,16 +85,10 @@ def cancel_active_executors() -> None:
         _shutdown_executor(executor, wait=False)
 
 
-def mp3_to_m4b(sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
-    """ 
-    Converts a list of mp3 files to a single m4b file using ffmpeg.
-
-    Takes a sequence number to name the temporary files, a path to a filelist of mp3 files, 
-    the output bitrate, and the output path.
-    """
+def mp3_to_m4b(chapter_index, sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
     sequence = f"{sequence:04}" # Zero pad the sequence number to 4 digits
 
-    output_m4b_path = os.path.join(output_path, f"{sequence}-{os.path.splitext(os.path.basename(mp3_path))[0]}.m4b")
+    output_m4b_path = os.path.join(output_path, f"chapter-{chapter_index:04}-part-{sequence:04}.m4b")
 
     # Convert mp3 to m4b, ignoring any video streams (e.g., cover images)
     command = [
@@ -102,23 +97,22 @@ def mp3_to_m4b(sequence, mp3_path: str, bitrate: int, output_path: str) -> str:
         output_m4b_path
     ]
     _run_subprocess(command)
-
     return output_m4b_path
 
 
-def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
-    """
-    Creates tasks of two or three mp3 files to convert to m4b files in parallel.
-    """
-    output_m4b_paths = []
+def convert_chapters(chapter_parts: list[str], bitrate: int, output_path: str) -> list:
+    output_m4b_paths: list[list[str]] = []
 
     with _managed_executor(initializer=init_worker) as executor:
         futures = []
-        for i, mp3_path in enumerate(files):
-            futures.append(executor.submit(mp3_to_m4b, i, mp3_path, bitrate, output_path))
+        for part in chapter_parts:
+            part_name = os.path.basename(part)
+            chapter_index = int(part_name.split('-')[1])
+            sequence = int(part_name.split('-')[3].split('.')[0])
+            futures.append(executor.submit(mp3_to_m4b, chapter_index, sequence, part, bitrate, output_path))
 
         # Create a progress bar
-        with tqdm(total=len(futures), desc="Processing MP3 to M4B", unit="chapter", ncols=TUI_WIDTH) as pbar:
+        with tqdm(total=len(futures), desc="Processing MP3 to M4B", unit="parts", ncols=TUI_WIDTH) as pbar:
             for future in concurrent.futures.as_completed(futures):
                 try:
                     output_m4b_paths.append(future.result())
@@ -127,80 +121,132 @@ def parallel_mp3_to_m4a(files: list, bitrate: int, output_path: str) -> list:
                 pbar.update(1)  # Update the progress bar for each completed task
 
     output_m4b_paths.sort()
+
+    # Clean up temporary mp3 files
+    for file in os.listdir(output_path):
+        if file.endswith(".mp3"):
+            os.remove(os.path.join(output_path, file))
+
     return output_m4b_paths
 
 
-def concat_audio(files: list, input_path: str, file_type: str) -> str:
+def reconstruct_chapters(m4b_parts: list[str], files: list[str], temp_dir: str) -> list[str]:
+    """
+    Reconstructs chapters from m4b parts into complete chapter m4b files.
+    """
+    # Sort the m4b parts into chapters
+    chapters_list: list[list[str]] = []
+    m4b_parts.sort()
+    i: int = 0
+    while i < len(m4b_parts):
+        part_name1 = os.path.basename(m4b_parts[i])
+        chapter_index1 = int(part_name1.split('-')[1])
+        chapter: list[str] = []
+        chapter.append(m4b_parts[i])
+        
+        i += 1
+        while i < len(m4b_parts):
+            part_name2 = os.path.basename(m4b_parts[i])
+            chapter_index2 = int(part_name2.split('-')[1])
+            
+            if chapter_index1 == chapter_index2:
+                chapter.append(m4b_parts[i])
+                i += 1
+            else:
+                break
+        chapters_list.append(chapter)
+
+    # Concatenate each chapter's parts into a single m4b file
+    output_m4b_paths: list[str] = []
+    with _managed_executor(initializer=init_worker) as executor:
+        futures = []
+        for index, chapter in enumerate(chapters_list):
+            chapter_name = os.path.basename(files[index]).split('.')[0]
+            concat_path = os.path.join(temp_dir, f"{chapter_name}.m4b")
+
+            if len(chapter) == 1:
+                # If there's only one part, rename it instead of concatenating
+                import shutil
+                shutil.move(chapter[0], concat_path)
+                output_m4b_paths.append(concat_path)
+            else:
+                futures.append(executor.submit(concat_audio, chapter, temp_dir, concat_path, index))
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                output_m4b_paths.append(future.result())
+            except (concurrent.futures.CancelledError, BrokenProcessPool):
+                break
+
+    output_m4b_paths.sort()
+
+    # Clean up temporary m4b part files
+    pattern = re.compile(r'^chapter-\d+-part-\d+\.m4b$')
+    for file in os.listdir(temp_dir):
+        if pattern.match(file):
+            os.remove(os.path.join(temp_dir, file))
+    
+    return output_m4b_paths
+
+
+def concat_audio(files: list, input_path: str, concat_path: str, chapter_index: int) -> str:
     """
     Concatenates m4b files into a single m4b file.
     """
-    filelist_path = os.path.join(input_path, "filelist.txt")
+    filelist_path = os.path.join(input_path, f"filelist-{chapter_index}.txt")
     create_filelist(filelist_path, files)
 
-    concat_path = os.path.join(input_path, f"concat{file_type}")
     command = [
         "ffmpeg", "-hide_banner", "-loglevel", "panic", "-f", "concat", "-safe", "0",
         "-i", filelist_path, "-c:a", "copy", concat_path
     ]
     _run_subprocess(command)
 
+    set_track_number(concat_path, chapter_index + 1, ".m4b")
+
     return concat_path
 
 
-def split_mp3(mp3_path: str, mp3_file_list: list, temp_dir: str, split_count: int):
+def split_mp3_file(mp3_path: str, file_index: int, mp3_file_list: list, temp_dir: str, segment_length: int):
     """ 
     Split an mp3 file into a number of equal length mp3 files. 
     """
-    duration = MP3(mp3_path).info.length
-    split_duration = duration / split_count
 
     # Use ffmpeg's segment option to split the file
     command = [
         "ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", mp3_path,
-        "-f", "segment", "-segment_time", str(split_duration), "-c", "copy",
-        os.path.join(temp_dir, "part-%04d.mp3")
+        "-f", "segment", "-segment_time", str(segment_length), "-c", "copy",
+        os.path.join(temp_dir, f"chapter-{file_index:04d}-part-%04d.mp3")
     ]
     _run_subprocess(command)
 
-    # Collect the split files
-    for i in range(split_count):
-        split_mp3 = os.path.join(temp_dir, f"part-{i:04}.mp3")
-        if os.path.exists(split_mp3):
-            mp3_file_list.append(split_mp3)
 
-
-def chapterize_m4b(m4b_path: str, chapters_path: str, output_path: str) -> None:
+def split_mp3_chapters(files: list, mp3_file_list: list[str], temp_dir: str, segment_length: int):
     """
-    Uses ffmpeg to embed chapters in a m4b file.
+    Split each chapter in the files list into smaller segments of specified length in minutes.
     """
-    command = [
-        "ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", m4b_path,
-        "-i", chapters_path, "-c", "copy", "-map", "0:a", "-map_chapters", "1",
-        output_path
-    ]
-    _run_subprocess(command)
-    os.remove(chapters_path)
-    os.remove(m4b_path)
+    # Convert segment length to seconds
+    segment_length *= 60
+
+    with _managed_executor(initializer=init_worker) as executor:
+        futures = []
+        for index, chapter in enumerate(files):
+            futures.append(executor.submit(split_mp3_file, chapter, index, [], temp_dir, segment_length))
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()
+            except (concurrent.futures.CancelledError, BrokenProcessPool):
+                break
+
+    pattern = re.compile(r'^chapter-\d+-part-\d+\.mp3$')
+    for file in os.listdir(temp_dir):
+        if pattern.match(file):
+            mp3_file_list.append(os.path.join(temp_dir, file))
 
 
-def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
-    """
-    Embeds artist, album, and date metadata in a m4b file.
-    """
-    command = [
-        "ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", input_file,
-        "-c", "copy",
-        "-metadata", f'artist={metadata["artist"]}',
-        "-metadata", f'album={metadata["album"]}',
-        "-metadata", f'date={metadata["date"]}',
-        output_file
-    ]
-    _run_subprocess(command)
-    os.remove(input_file)
 
-
-def finalize_m4b(input_file: str, output_file: str,
-                 metadata: dict, chapters_path: str | None = None) -> None:
+def finalize_m4b(input_file: str, output_file: str, metadata: dict, chapters_path: str | None = None) -> None:
     command = ["ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", input_file]
     if chapters_path:
         command += ["-i", chapters_path]

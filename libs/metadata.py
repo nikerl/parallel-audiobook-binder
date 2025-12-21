@@ -87,6 +87,28 @@ def get_track_number(file_path: str, file_type: str) -> int:
             return track_number
         except Exception:
             return 0
+        
+    
+def set_track_number(file_path: str, track_number: int, file_type: str) -> None:
+    """ 
+    Set track number in audio file
+    """
+
+    if file_type == ".mp3":
+        try:
+            audio = EasyID3(file_path)
+            audio['tracknumber'] = str(track_number)
+            audio.save()
+        except Exception as e:
+            print(f"Error setting track number for {file_path}: {e}")
+    
+    elif file_type == ".m4b":
+        try:    
+            audio = MP4(file_path)
+            audio["trkn"] = [(track_number, 0)]
+            audio.save()
+        except Exception as e:
+            print(f"Error setting track number for {file_path}: {e}")
 
 
 def get_audio_length(file: str) -> int:
