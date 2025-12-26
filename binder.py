@@ -3,7 +3,6 @@ import multiprocessing
 import os
 import sys
 import signal
-import shutil
 import time
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
@@ -172,20 +171,13 @@ def main() -> None:
         metadata_dict, chapters_path, concat_m4b_path = convert_cue_sheet(temp_dir_path, cue_sheet_path, args.input, args.bitrate)
 
     elif args.chapters == 'none':
-        metadata_dict, _, concat_m4b_path = convert_no_chapters(temp_dir_path, args.input, args.bitrate)
+        metadata_dict, chapters_path, concat_m4b_path = convert_no_chapters(temp_dir_path, args.input, args.bitrate)
 
-    print("Embeding metadata")
-    metadata_m4b_path = os.path.join(temp_dir_path, "metadata.m4b")
-    audio.embed_metadata(concat_m4b_path, metadata_m4b_path, metadata_dict)
 
-    output_file_path = utils.sanitize_filename(metadata_dict['album'])
-    if not args.chapters == 'none':
-        print("Embedding Chapters")
-        chapterize_m4b_path = os.path.join(temp_dir_path, "chapterized.m4b")
-        audio.chapterize_m4b(metadata_m4b_path, chapters_path, chapterize_m4b_path)
-        shutil.move(chapterize_m4b_path, os.path.join(args.output, f"{output_file_path}.m4b"))
-    else:
-        shutil.move(metadata_m4b_path, os.path.join(args.output, f"{output_file_path}.m4b"))
+    print("Embeding metadata" + " and chapters" if not args.chapters == 'none' else "")
+    output_file_path = os.path.join(args.output, utils.sanitize_filename(metadata_dict['album'])) + ".m4b"
+    audio.finalize_m4b(concat_m4b_path, output_file_path, metadata_dict, chapters_path)
+    
     
     utils.cleanup(temp_dir_path)
 

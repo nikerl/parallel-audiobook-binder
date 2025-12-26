@@ -169,31 +169,15 @@ def split_mp3(mp3_path: str, mp3_file_list: list, temp_dir: str, split_count: in
             mp3_file_list.append(split_mp3)
 
 
-def chapterize_m4b(m4b_path: str, chapters_path: str, output_path: str) -> None:
-    """
-    Uses ffmpeg to embed chapters in a m4b file.
-    """
-    command = [
-        "ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", m4b_path,
-        "-i", chapters_path, "-c", "copy", "-map", "0:a", "-map_chapters", "1",
-        output_path
-    ]
+def finalize_m4b(input_file: str, output_file: str, metadata: dict, chapters_path: str | None = None) -> None:
+    command = ["ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", input_file]
+    if chapters_path:
+        command += ["-i", chapters_path]
+    command += ["-c", "copy"]
+    for key in ("artist", "album", "date"):
+        if metadata.get(key):
+            command += ["-metadata", f"{key}={metadata[key]}"]
+    if chapters_path:
+        command += ["-map", "0:a", "-map_chapters", "1"]
+    command.append(output_file)
     _run_subprocess(command)
-    os.remove(chapters_path)
-    os.remove(m4b_path)
-
-
-def embed_metadata(input_file: str, output_file: str, metadata: dict) -> None:
-    """
-    Embeds artist, album, and date metadata in a m4b file.
-    """
-    command = [
-        "ffmpeg", "-hide_banner", "-loglevel", "panic", "-i", input_file,
-        "-c", "copy",
-        "-metadata", f'artist={metadata["artist"]}',
-        "-metadata", f'album={metadata["album"]}',
-        "-metadata", f'date={metadata["date"]}',
-        output_file
-    ]
-    _run_subprocess(command)
-    os.remove(input_file)
