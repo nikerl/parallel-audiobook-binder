@@ -2,12 +2,45 @@ import argparse
 import os
 
 global TUI_WIDTH; TUI_WIDTH = 85
+HEADER_FILLER_CHAR = '%'
 PROMPT = ">>> "
+
+
+def print_header(string: str | None = None) -> None:
+    if string is None:
+        print('\n' + HEADER_FILLER_CHAR * TUI_WIDTH + '\n')
+        return
+    else:
+        lenght: int = (TUI_WIDTH - (len(string)+2)); 
+        l = int(lenght / 2); 
+        r = l if lenght % 2 == 0 else l + 1
+        print('\n' + HEADER_FILLER_CHAR * int(l) + f' {string} ' + HEADER_FILLER_CHAR * int(r) + '\n')
+
+
+def print_logo() -> None:
+    logo = r"""
+             ____                 _ _      _                   
+            |  _ \ __ _ _ __ __ _| | | ___| |                  
+            | |_) / _` | '__/ _` | | |/ _ \ |                  
+            |  __/ (_| | | | (_| | | |  __/ |                  
+            |_|   \__,_|_|  \__,_|_|_|\___|_|   _                 _    
+                       / \  _   _  __| (_) ___ | |__   ___   ___ | | __
+                      / _ \| | | |/ _` | |/ _ \| '_ \ / _ \ / _ \| |/ /
+                     / ___ \ |_| | (_| | | (_) | |_) | (_) | (_) |   < 
+                    /_/   \_\__,_|\__,_|_|\___/|_.__/ \___/ \___/|_|\_\
+                                | __ )(_)_ __   __| | ___ _ __                     
+                                |  _ \| | '_ \ / _` |/ _ \ '__|                    
+                                | |_) | | | | | (_| |  __/ |                       
+                                |____/|_|_| |_|\__,_|\___|_|
+    """
+    print(HEADER_FILLER_CHAR * TUI_WIDTH, end="")
+    print(logo)
+    print(HEADER_FILLER_CHAR * TUI_WIDTH)
+
 
 def tui(args) -> argparse.Namespace:
 
-    l : int = (TUI_WIDTH - 27) / 2
-    print("\n\n" + "%" * int(l) + " Parallel Audiobook Binder " + "%" * int(l))
+    print_logo()
     
     print("\nPath to the audiobook files. Press Enter for current directory:")
     while True:
@@ -54,6 +87,6 @@ def tui(args) -> argparse.Namespace:
     print("\nSummary of settings:")
     print(f"Input directory: {args.input}, Output directory: {args.output}, Bitrate: {args.bitrate} kb/s, Chapters: {args.chapters}")
 
-    print("\n" + "%" * TUI_WIDTH)
+    print_header()
 
     return args

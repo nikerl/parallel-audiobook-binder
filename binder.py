@@ -47,17 +47,17 @@ def convert_chapterized_files(temp_dir_path: str, input_dir: str, bitrate: int):
     files_mp3: list = metadata.create_sorted_list_of_files(input_dir)
 
     # Extract metadata from the first mp3 file
-    print("Extract metadata")
+    print("Extracting metadata")
     metadata_dict: dict = metadata.extract_metadata_mp3(files_mp3[0], bitrate)
 
     # Convert mp3 files to m4a files in parallel
     files_m4b = audio.parallel_mp3_to_m4a(files_mp3, metadata_dict["bitrate"], temp_dir_path)
 
-    # Create a file containing chapter information
+    print("Extracting chapter information from files")
     chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
     metadata.create_chapter_file(files_m4b, chapters_path)
 
-    # Concatenate m4b files into a single m4b file
+    print("Concatenating audio files")
     concat_m4b_path = audio.concat_audio(files_m4b, temp_dir_path, ".m4b")
 
     return metadata_dict, chapters_path, concat_m4b_path
@@ -78,17 +78,19 @@ def convert_cue_sheet(temp_dir_path: str, cue_sheet_path: str, input_dir: str, b
     chapters_path = None
 
     if file_type == '.mp3':
-        print("Extract metadata")
+        print("Extracting metadata")
         metadata_dict = metadata.extract_metadata_mp3(files[0], bitrate)
         audio_duration = MP3(concat_path).info.length  # Use concat_path here
 
-        # Split into multiple files for parallel conversion
+        print("Splitting mp3 for parallel conversion")
         split_mp3_list = []
         split_count = multiprocessing.cpu_count() * 2
         audio.split_mp3(concat_path, split_mp3_list, temp_dir_path, split_count)
 
         # Convert to m4b
         files_m4b = audio.parallel_mp3_to_m4a(split_mp3_list, metadata_dict["bitrate"], temp_dir_path)
+
+        print("Concatenating audio files")
         concat_m4b_path = audio.concat_audio(files_m4b, temp_dir_path, ".m4b")
 
     elif file_type == '.m4b':
@@ -98,7 +100,7 @@ def convert_cue_sheet(temp_dir_path: str, cue_sheet_path: str, input_dir: str, b
         concat_m4b_path = concat_path
 
     if cue_sheet_path is not None:
-        print("Parsing CUE sheet")  
+        print("Parsing chapters from CUE sheet")  
         chapters_path: str = os.path.join(temp_dir_path, "chapters.txt")
         metadata.parse_cue_sheet(cue_sheet_path, chapters_path, audio_duration)
 
@@ -133,8 +135,7 @@ def main() -> None:
     if len(sys.argv) == 1:
         args = tui.tui(args)
     else:
-        l : int = (tui.TUI_WIDTH - 27) / 2
-        print("\n\n" + "%" * int(l) + " Parallel Audiobook Binder " + "%" * int(l))
+        tui.print_logo()
 
 
     if args.chapters is None:
@@ -148,8 +149,8 @@ def main() -> None:
     else:
         args.output = os.path.abspath(args.output)
 
-    lenght : int = (tui.TUI_WIDTH - 22 - len(os.path.basename(args.input))); l = int(lenght / 2); r = l if lenght % 2 == 0 else l + 1
-    print('\n' + '%' * int(l) + f' Converting "{os.path.basename(args.input)}" to M4B ' + '%' * int(r) + '\n')
+
+    tui.print_header(f'Converting "{os.path.basename(args.input)}" to M4B')
 
     # Create temporary directory for processing files
     temp_dir_path = os.path.join(args.input, ".temp")
@@ -163,6 +164,7 @@ def main() -> None:
         for file in os.listdir(args.input):
             if file.endswith(".cue"):
                 cue_sheet_path = os.path.join(args.input, file)
+                print(f"Found CUE sheet: {os.path.basename(cue_sheet_path)}")
                 break
         if cue_sheet_path is None:
             utils.cleanup(temp_dir_path)
@@ -181,8 +183,7 @@ def main() -> None:
     
     utils.cleanup(temp_dir_path)
 
-    l : int = (tui.TUI_WIDTH - 7) / 2
-    print("\n" + "%" * int(l) + " Done! " + "%" * int(l) + "\n")
+    tui.print_header("Done!")
 
 
 if __name__ == '__main__':
